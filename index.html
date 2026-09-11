@@ -64,21 +64,18 @@ function toggleMute() {
   updateMuteBtn();
 }
 
-function beep() {
+// 브라우저 내장 음성 합성(TTS)으로 선생님 이름을 직접 불러줌
+function speakTeacherName(name, subject) {
   if (muted) return;
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    for (let i = 0; i < 2; i++) {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = 880;
-      g.gain.value = 0.15;
-      o.connect(g); g.connect(ctx.destination);
-      const start = ctx.currentTime + i * 0.35;
-      o.start(start);
-      o.stop(start + 0.25);
-    }
+    const text = subject
+      ? `${subject} 담당, ${name} 선생님, 호출입니다.`
+      : `${name} 선생님, 호출입니다.`;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'ko-KR';
+    utter.rate = 1;
+    utter.pitch = 1;
+    window.speechSynthesis.speak(utter);
   } catch (e) {}
 }
 
@@ -102,10 +99,9 @@ async function refresh() {
     return;
   }
 
-  let hasNew = false;
-  data.forEach(c => { if (!knownIds.has(c.id)) hasNew = true; });
-  if (hasNew && !firstLoad) {
-    beep();
+  const newCalls = data.filter(c => !knownIds.has(c.id));
+  if (newCalls.length > 0 && !firstLoad) {
+    newCalls.forEach(c => speakTeacherName(c.teacher, c.subject));
     document.title = '🔔 새 호출! - 호출 현황판';
   }
   knownIds = new Set(data.map(c => c.id));
@@ -132,6 +128,18 @@ async function resolveCall(id) {
   await sb.from('calls').update({ resolved: true }).eq('id', id);
   refresh();
 }
+
+// 브라우저는 사용자가 페이지를 한 번 클릭하기 전까지 자동 음성 재생을 막는 경우가 많아,
+// 첫 클릭 시 무음으로 한 번 실행해서 미리 "잠금 해제"해 둠
+let audioUnlocked = false;
+document.addEventListener('click', () => {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try {
+    const unlockUtter = new SpeechSynthesisUtterance('');
+    window.speechSynthesis.speak(unlockUtter);
+  } catch (e) {}
+}, { once: true });
 
 setInterval(refresh, 2000);
 refresh();
