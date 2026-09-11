@@ -28,6 +28,12 @@
     border-radius: 10px; font-size: 15px; cursor: pointer;
   }
   .resolve-btn:hover { background: #15803d; }
+  .away-btn {
+    background: #475569; border: none; color: white; padding: 10px 16px;
+    border-radius: 10px; font-size: 14px; cursor: pointer;
+  }
+  .away-btn:hover { background: #334155; }
+  .btn-group { display: flex; gap: 8px; }
   .empty { color: #64748b; text-align: center; margin-top: 60px; font-size: 18px; }
   .error { color: #f87171; text-align: center; margin-top: 60px; font-size: 16px; }
 </style>
@@ -119,13 +125,21 @@ async function refresh() {
         <div class="call-room">${c.teacher} 선생님${c.subject ? ' <span style="font-size:14px; color:#94a3b8; font-weight:400;">(' + c.subject + ')</span>' : ''}</div>
         <div class="call-time">${timeAgo(c.created_at)}</div>
       </div>
-      <button class="resolve-btn" onclick="resolveCall(${c.id})">완료</button>
+      <div class="btn-group">
+        <button class="away-btn" onclick="markAway(${c.id})">자리에 없음</button>
+        <button class="resolve-btn" onclick="resolveCall(${c.id})">완료</button>
+      </div>
     </div>
   `).join('');
 }
 
 async function resolveCall(id) {
   await sb.from('calls').update({ resolved: true }).eq('id', id);
+  refresh();
+}
+
+async function markAway(id) {
+  await sb.from('calls').update({ resolved: true, away: true }).eq('id', id);
   refresh();
 }
 
