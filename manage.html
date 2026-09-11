@@ -59,7 +59,7 @@
 
   <section>
     <h2>1. 엑셀로 일괄 추가</h2>
-    <p style="color:#94a3b8; font-size:13px; margin-top:0;">첫 번째 열(A열)에 있는 이름들을 읽어옵니다. 헤더 줄이 있다면 미리보기에서 체크 해제하세요.</p>
+    <p style="color:#94a3b8; font-size:13px; margin-top:0;">A열=이름, B열=과목(선택)으로 읽어옵니다. 헤더 줄이 있다면 미리보기에서 체크 해제하세요.</p>
     <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     <div id="preview" style="margin-top:14px;"></div>
     <button class="btn-primary" id="importBtn" style="display:none; margin-top:12px;" onclick="importChecked()">💾 저장하기</button>
@@ -68,7 +68,8 @@
   <section>
     <h2>2. 이름 직접 추가</h2>
     <div class="row">
-      <input type="text" id="nameInput" placeholder="예: 김철수" onkeydown="if(event.key==='Enter') addOne()">
+      <input type="text" id="nameInput" placeholder="예: 김철수" onkeydown="if(event.key==='Enter') document.getElementById('subjectInput').focus()">
+      <input type="text" id="subjectInput" placeholder="과목 (예: 수학)" onkeydown="if(event.key==='Enter') addOne()">
       <button class="btn-primary" onclick="addOne()">추가</button>
     </div>
   </section>
@@ -90,7 +91,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let sb = null;
 const toastEl = document.getElementById('toast');
-let parsedNames = [];
+let parsedEntries = [];
 let toastTimer = null;
 
 function showToast(text, isError) {
@@ -134,7 +135,7 @@ async function loadTeachers() {
   }
   listEl.innerHTML = data.map(t => `
     <li>
-      <span>${t.name}</span>
+      <span>${t.name}${t.subject ? ' <span style="color:#94a3b8; font-size:13px;">(' + t.subject + ')</span>' : ''}</span>
       <button class="btn-danger" onclick="deleteTeacher(${t.id})">삭제</button>
     </li>
   `).join('');
@@ -142,14 +143,17 @@ async function loadTeachers() {
 
 async function addOne() {
   const input = document.getElementById('nameInput');
+  const subjectInput = document.getElementById('subjectInput');
   const name = input.value.trim();
+  const subject = subjectInput.value.trim();
   if (!name) return;
-  const { error } = await sb.from('teachers').insert({ name });
+  const { error } = await sb.from('teachers').insert({ name, subject: subject || null });
   if (error) {
     showToast('추가 실패: ' + error.message, true);
   } else {
     showToast(name + ' 추가됨');
     input.value = '';
+    subjectInput.value = '';
     loadTeachers();
   }
 }
@@ -178,12 +182,17 @@ function handleFileSelect(e) {
       const wb = XLSX.read(evt.target.result, { type: 'array' });
       const sheet = wb.Sheets[wb.SheetNames[0]];
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-      const names = [];
+      const entries = [];
+      const seen = new Set();
       rows.forEach(r => {
-        const v = (r[0] ?? '').toString().trim();
-        if (v) names.push(v);
+        const name = (r[0] ?? '').toString().trim();
+        const subject = (r[1] ?? '').toString().trim();
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          entries.push({ name, subject });
+        }
       });
-      parsedNames = [...new Set(names)];
+      parsedEntries = entries;
       renderPreview();
     } catch (err) {
       previewEl.innerHTML = '<div class="empty">⚠️ 엑셀 파일을 읽는 중 오류가 발생했습니다: ' + err.message + '</div>';
@@ -200,15 +209,15 @@ function handleFileSelect(e) {
 function renderPreview() {
   const previewEl = document.getElementById('preview');
   const importBtn = document.getElementById('importBtn');
-  if (parsedNames.length === 0) {
+  if (parsedEntries.length === 0) {
     previewEl.innerHTML = '<div class="empty">읽어온 이름이 없습니다.</div>';
     importBtn.style.display = 'none';
     return;
   }
-  previewEl.innerHTML = parsedNames.map((n, i) => `
+  previewEl.innerHTML = parsedEntries.map((e, i) => `
     <label class="preview-item">
       <input type="checkbox" checked data-idx="${i}">
-      <span>${n}</span>
+      <span>${e.name}${e.subject ? ' <span style="color:#94a3b8; font-size:13px;">(' + e.subject + ')</span>' : ''}</span>
     </label>
   `).join('');
   importBtn.style.display = 'inline-block';
@@ -216,14 +225,14 @@ function renderPreview() {
 
 async function importChecked() {
   const checked = Array.from(document.querySelectorAll('#preview input[type="checkbox"]:checked'))
-    .map(cb => parsedNames[cb.dataset.idx]);
+    .map(cb => parsedEntries[cb.dataset.idx]);
   if (checked.length === 0) return;
 
   const importBtn = document.getElementById('importBtn');
   importBtn.disabled = true;
   importBtn.textContent = '저장 중...';
 
-  const rows = checked.map(name => ({ name }));
+  const rows = checked.map(e => ({ name: e.name, subject: e.subject || null }));
   const { data, error } = await sb
     .from('teachers')
     .upsert(rows, { onConflict: 'name', ignoreDuplicates: true })
@@ -238,20 +247,21 @@ async function importChecked() {
   }
 
   // upsert 후 실제로 테이블에 존재하는지 재확인
+  const checkedNames = checked.map(e => e.name);
   const { data: verifyData, error: verifyError } = await sb
     .from('teachers')
     .select('name')
-    .in('name', checked);
+    .in('name', checkedNames);
 
   if (verifyError) {
     showToast('저장은 됐지만 확인 중 오류: ' + verifyError.message, true);
-  } else if (verifyData.length >= checked.length) {
-    showToast(checked.length + '명 Supabase에 저장 완료');
+  } else if (verifyData.length >= checkedNames.length) {
+    showToast(checkedNames.length + '명 Supabase에 저장 완료');
   } else {
-    showToast('일부만 저장된 것 같습니다 (' + verifyData.length + '/' + checked.length + '명 확인됨)', true);
+    showToast('일부만 저장된 것 같습니다 (' + verifyData.length + '/' + checkedNames.length + '명 확인됨)', true);
   }
 
-  parsedNames = [];
+  parsedEntries = [];
   document.getElementById('preview').innerHTML = '';
   document.getElementById('importBtn').style.display = 'none';
   document.getElementById('fileInput').value = '';
