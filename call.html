@@ -44,12 +44,12 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // ============================================================================
 
 const COOLDOWN_SEC = 8;
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const grid = document.getElementById('grid');
 const statusEl = document.getElementById('status');
 
 async function loadTeachers() {
-  const { data, error } = await supabase.from('teachers').select('*').order('name', { ascending: true });
+  const { data, error } = await sb.from('teachers').select('*').order('name', { ascending: true });
   if (error) {
     grid.innerHTML = '<div class="empty">⚠️ 명단을 불러올 수 없습니다: ' + error.message + '</div>';
     return;
@@ -72,7 +72,7 @@ async function callTeacher(name, btn) {
   btn.disabled = true;
   const original = btn.textContent;
   btn.textContent = '호출 중...';
-  const { error } = await supabase.from('calls').insert({ teacher: name });
+  const { error } = await sb.from('calls').insert({ teacher: name });
 
   if (error) {
     statusEl.textContent = '⚠️ 호출 실패: ' + error.message;
