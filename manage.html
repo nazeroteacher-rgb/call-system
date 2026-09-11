@@ -88,7 +88,7 @@
 const SUPABASE_URL = "https://bmixrutphsmokjmecagj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtaXhydXRwaHNtb2tqbWVjYWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjYyMjEsImV4cCI6MjEwNDY0MjIyMX0.01EyU3EcUPyJZ6hq5YU90zcVFPquRybJkKUHobe1ZAs";
 
-let supabase = null;
+let sb = null;
 const toastEl = document.getElementById('toast');
 let parsedNames = [];
 let toastTimer = null;
@@ -101,25 +101,27 @@ function showToast(text, isError) {
 }
 
 function initApp() {
+  // 파일 선택 기능은 Supabase 연결 여부와 상관없이 항상 동작해야 하므로 먼저 등록
+  document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
   try {
     if (typeof window.supabase === 'undefined') {
       throw new Error('Supabase 라이브러리를 불러오지 못했습니다 (네트워크/CDN 차단 가능성)');
     }
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   } catch (e) {
     document.getElementById('teacherList').innerHTML =
       '<li class="empty">⚠️ ' + e.message + '</li>';
     showToast(e.message, true);
     return;
   }
-  document.getElementById('fileInput').addEventListener('change', handleFileSelect);
   loadTeachers();
 }
 
 initApp();
 
 async function loadTeachers() {
-  const { data, error } = await supabase.from('teachers').select('*').order('name', { ascending: true });
+  const { data, error } = await sb.from('teachers').select('*').order('name', { ascending: true });
   const listEl = document.getElementById('teacherList');
   if (error) {
     listEl.innerHTML = '<li class="empty">⚠️ 불러오기 실패: ' + error.message + '</li>';
@@ -142,7 +144,7 @@ async function addOne() {
   const input = document.getElementById('nameInput');
   const name = input.value.trim();
   if (!name) return;
-  const { error } = await supabase.from('teachers').insert({ name });
+  const { error } = await sb.from('teachers').insert({ name });
   if (error) {
     showToast('추가 실패: ' + error.message, true);
   } else {
@@ -153,7 +155,7 @@ async function addOne() {
 }
 
 async function deleteTeacher(id) {
-  const { error } = await supabase.from('teachers').delete().eq('id', id);
+  const { error } = await sb.from('teachers').delete().eq('id', id);
   if (error) {
     showToast('삭제 실패: ' + error.message, true);
   } else {
@@ -222,7 +224,7 @@ async function importChecked() {
   importBtn.textContent = '저장 중...';
 
   const rows = checked.map(name => ({ name }));
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('teachers')
     .upsert(rows, { onConflict: 'name', ignoreDuplicates: true })
     .select();
@@ -236,7 +238,7 @@ async function importChecked() {
   }
 
   // upsert 후 실제로 테이블에 존재하는지 재확인
-  const { data: verifyData, error: verifyError } = await supabase
+  const { data: verifyData, error: verifyError } = await sb
     .from('teachers')
     .select('name')
     .in('name', checked);
