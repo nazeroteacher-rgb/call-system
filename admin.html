@@ -164,18 +164,33 @@ async function deleteTeacher(id) {
 function handleFileSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
+  const previewEl = document.getElementById('preview');
+  previewEl.innerHTML = '<div class="empty">파일을 읽는 중...</div>';
+
   const reader = new FileReader();
   reader.onload = (evt) => {
-    const wb = XLSX.read(evt.target.result, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-    const names = [];
-    rows.forEach(r => {
-      const v = (r[0] ?? '').toString().trim();
-      if (v) names.push(v);
-    });
-    parsedNames = [...new Set(names)];
-    renderPreview();
+    try {
+      if (typeof XLSX === 'undefined') {
+        throw new Error('엑셀 처리 라이브러리를 불러오지 못했습니다 (네트워크 문제일 수 있어요)');
+      }
+      const wb = XLSX.read(evt.target.result, { type: 'array' });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+      const names = [];
+      rows.forEach(r => {
+        const v = (r[0] ?? '').toString().trim();
+        if (v) names.push(v);
+      });
+      parsedNames = [...new Set(names)];
+      renderPreview();
+    } catch (err) {
+      previewEl.innerHTML = '<div class="empty">⚠️ 엑셀 파일을 읽는 중 오류가 발생했습니다: ' + err.message + '</div>';
+      showToast('엑셀 읽기 실패: ' + err.message, true);
+    }
+  };
+  reader.onerror = () => {
+    previewEl.innerHTML = '<div class="empty">⚠️ 파일을 읽을 수 없습니다. 다시 시도해주세요.</div>';
+    showToast('파일 읽기 실패', true);
   };
   reader.readAsArrayBuffer(file);
 }
