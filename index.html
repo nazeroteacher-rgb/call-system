@@ -120,7 +120,7 @@ async function refresh() {
   list.innerHTML = data.map(c => `
     <div class="call-card">
       <div>
-        <div class="call-room">${c.teacher} 선생님</div>
+        <div class="call-room">${c.teacher} 선생님${c.subject ? ' <span style="font-size:14px; color:#94a3b8; font-weight:400;">(' + c.subject + ')</span>' : ''}</div>
         <div class="call-time">${timeAgo(c.created_at)}</div>
       </div>
       <button class="resolve-btn" onclick="resolveCall(${c.id})">완료</button>
