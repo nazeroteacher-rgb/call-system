@@ -36,7 +36,7 @@
 <header>
   <h1>📋 호출 현황판</h1>
   <div style="display:flex; gap:10px; align-items:center;">
-    <a href="admin.html" style="color:#60a5fa; font-size:14px; text-decoration:none;">선생님 명단 관리 →</a>
+    <a href="manage.html" style="color:#60a5fa; font-size:14px; text-decoration:none;">선생님 명단 관리 →</a>
     <button id="muteBtn" onclick="toggleMute()">🔊 소리 켜짐</button>
   </div>
 </header>
@@ -48,7 +48,7 @@ const SUPABASE_URL = "https://bmixrutphsmokjmecagj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtaXhydXRwaHNtb2tqbWVjYWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjYyMjEsImV4cCI6MjEwNDY0MjIyMX0.01EyU3EcUPyJZ6hq5YU90zcVFPquRybJkKUHobe1ZAs";
 // ============================================================================
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let knownIds = new Set();
 let firstLoad = true;
@@ -89,7 +89,7 @@ function timeAgo(iso) {
 }
 
 async function refresh() {
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('calls')
     .select('*')
     .eq('resolved', false)
@@ -129,7 +129,7 @@ async function refresh() {
 }
 
 async function resolveCall(id) {
-  await supabase.from('calls').update({ resolved: true }).eq('id', id);
+  await sb.from('calls').update({ resolved: true }).eq('id', id);
   refresh();
 }
 
