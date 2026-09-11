@@ -28,6 +28,19 @@
   button.teacher:hover { background: #334155; }
   button.teacher:disabled { background: #16a34a; color: white; cursor: not-allowed; }
   button.teacher .subject { font-size: 13px; font-weight: 400; color: #94a3b8; margin-top: 4px; }
+  button.teacher.away { background: #451a1a; color: #fca5a5; cursor: not-allowed; opacity: 0.85; }
+  button.teacher.away .subject { color: #fca5a5; }
+  #awayBanner {
+    display: none; width: 100%; max-width: 720px;
+    background: #7f1d1d; border: 3px solid #ef4444; border-radius: 18px;
+    padding: 26px 28px; text-align: center;
+  }
+  #awayBanner.show { display: block; animation: pop .25s ease; }
+  #awayBanner .banner-title {
+    font-size: 34px; font-weight: 900; color: #fecaca; margin-bottom: 10px;
+  }
+  #awayBanner .banner-list { font-size: 24px; font-weight: 700; color: #fca5a5; line-height: 1.6; }
+  @keyframes pop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   #status { font-size: 18px; min-height: 28px; text-align: center; color: #4ade80; font-weight: 600; }
   #trackingStatus {
     max-width: 560px; width: 100%; text-align: center; font-size: 16px;
@@ -40,6 +53,7 @@
 </style>
 </head>
 <body>
+  <div id="awayBanner"></div>
   <h1>🔔 선생님 호출</h1>
   <div class="sub">호출할 선생님을 눌러주세요</div>
   <div class="grid" id="grid"><div class="empty">불러오는 중...</div></div>
@@ -60,6 +74,8 @@ const statusEl = document.getElementById('status');
 const trackingEl = document.getElementById('trackingStatus');
 
 let tracking = null; // { id, pollHandle, timeoutHandle }
+let lastTeachers = [];
+let cooldownUntil = {}; // teacherName -> timestamp(ms)
 
 function stopTracking() {
   if (!tracking) return;
@@ -99,53 +115,86 @@ function startTracking(id, name) {
   tracking = { id, pollHandle, timeoutHandle };
 }
 
+// DB에서 최신 선생님 목록을 가져와 캐시에 저장하고 다시 그림 (5초마다 실행)
 async function loadTeachers() {
   const { data, error } = await sb.from('teachers').select('*').order('name', { ascending: true });
   if (error) {
     grid.innerHTML = '<div class="empty">⚠️ 명단을 불러올 수 없습니다: ' + error.message + '</div>';
     return;
   }
+  lastTeachers = data;
+  renderTeachers();
+}
+
+// 캐시된 목록 + 쿨다운/부재중 상태만으로 화면을 그림 (DB 호출 없음, 즉시 반영용)
+function renderTeachers() {
+  const data = lastTeachers;
   if (data.length === 0) {
     grid.innerHTML = '<div class="empty">등록된 선생님이 없습니다.<br>관리자 페이지(manage.html)에서 먼저 추가해주세요.</div>';
     return;
   }
+
+  const now = Date.now();
+  const awayTeachers = data.filter(t => t.away_until && new Date(t.away_until).getTime() > now);
+
+  const bannerEl = document.getElementById('awayBanner');
+  if (awayTeachers.length > 0) {
+    bannerEl.className = 'show';
+    bannerEl.innerHTML =
+      '<div class="banner-title">🚫 지금 자리를 비우신 선생님이 있습니다</div>' +
+      '<div class="banner-list">' + awayTeachers.map(t => t.name + ' 선생님 부재중').join(' · ') + '</div>';
+  } else {
+    bannerEl.className = '';
+    bannerEl.innerHTML = '';
+  }
+
   grid.innerHTML = '';
   data.forEach(t => {
+    const isAway = t.away_until && new Date(t.away_until).getTime() > now;
+    const inCooldown = cooldownUntil[t.name] && cooldownUntil[t.name] > now;
+
     const btn = document.createElement('button');
-    btn.className = 'teacher';
-    btn.innerHTML = t.name + (t.subject ? '<div class="subject">' + t.subject + '</div>' : '');
-    btn.onclick = () => callTeacher(t.name, t.subject, btn);
+    btn.className = 'teacher' + (isAway && !inCooldown ? ' away' : '');
+
+    if (inCooldown) {
+      btn.disabled = true;
+      btn.textContent = '호출됨 ✓';
+    } else {
+      btn.innerHTML = (isAway ? '🚫 ' : '') + t.name + (isAway ? ' 부재중' : '') +
+        (t.subject ? '<div class="subject">' + t.subject + '</div>' : '');
+      btn.onclick = () => callTeacher(t.name, t.subject);
+    }
     grid.appendChild(btn);
   });
 }
 
-async function callTeacher(name, subject, btn) {
-  btn.disabled = true;
-  const original = btn.innerHTML;
-  btn.textContent = '호출 중...';
+async function callTeacher(name, subject) {
+  cooldownUntil[name] = Date.now() + COOLDOWN_SEC * 1000;
+  renderTeachers();
+
   const { data, error } = await sb.from('calls').insert({ teacher: name, subject: subject || null }).select().single();
 
   if (error) {
     statusEl.textContent = '⚠️ 호출 실패: ' + error.message;
     statusEl.style.color = '#f87171';
-    btn.disabled = false;
-    btn.innerHTML = original;
+    delete cooldownUntil[name];
+    renderTeachers();
     return;
   }
 
-  btn.textContent = '호출됨 ✓';
   statusEl.textContent = name + ' 선생님 호출 완료!';
   statusEl.style.color = '#4ade80';
   setTimeout(() => {
-    btn.disabled = false;
-    btn.innerHTML = original;
+    delete cooldownUntil[name];
     statusEl.textContent = '';
+    renderTeachers();
   }, COOLDOWN_SEC * 1000);
 
   if (data) startTracking(data.id, name);
 }
 
 loadTeachers();
+setInterval(loadTeachers, 5000);
 </script>
 </body>
 </html>
