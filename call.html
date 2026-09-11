@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>선생님 호출</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 24px;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #0f172a; color: #f1f5f9; padding: 24px;
+  }
+  h1 { font-size: 28px; margin: 0; text-align: center; }
+  .sub { color: #94a3b8; margin-top: -12px; text-align: center; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px; width: 100%; max-width: 720px;
+  }
+  button.teacher {
+    padding: 28px 12px; font-size: 22px; font-weight: 700;
+    border: none; border-radius: 16px; background: #1e293b; color: #f1f5f9;
+    cursor: pointer; transition: transform .1s, background .2s;
+  }
+  button.teacher:active { transform: scale(0.96); }
+  button.teacher:hover { background: #334155; }
+  button.teacher:disabled { background: #16a34a; color: white; cursor: not-allowed; }
+  #status { font-size: 18px; min-height: 28px; text-align: center; color: #4ade80; font-weight: 600; }
+  .empty { color: #64748b; font-size: 16px; text-align: center; }
+</style>
+</head>
+<body>
+  <h1>🔔 선생님 호출</h1>
+  <div class="sub">호출할 선생님을 눌러주세요</div>
+  <div class="grid" id="grid"><div class="empty">불러오는 중...</div></div>
+  <div id="status"></div>
+
+<script>
+// ====== 여기에 본인의 Supabase 프로젝트 정보를 입력하세요 (README 참고) ======
+const SUPABASE_URL = "https://bmixrutphsmokjmecagj.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtaXhydXRwaHNtb2tqbWVjYWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjYyMjEsImV4cCI6MjEwNDY0MjIyMX0.01EyU3EcUPyJZ6hq5YU90zcVFPquRybJkKUHobe1ZAs";
+// ============================================================================
+
+const COOLDOWN_SEC = 8;
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const grid = document.getElementById('grid');
+const statusEl = document.getElementById('status');
+
+async function loadTeachers() {
+  const { data, error } = await supabase.from('teachers').select('*').order('name', { ascending: true });
+  if (error) {
+    grid.innerHTML = '<div class="empty">⚠️ 명단을 불러올 수 없습니다: ' + error.message + '</div>';
+    return;
+  }
+  if (data.length === 0) {
+    grid.innerHTML = '<div class="empty">등록된 선생님이 없습니다.<br>관리자 페이지(admin.html)에서 먼저 추가해주세요.</div>';
+    return;
+  }
+  grid.innerHTML = '';
+  data.forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = 'teacher';
+    btn.textContent = t.name;
+    btn.onclick = () => callTeacher(t.name, btn);
+    grid.appendChild(btn);
+  });
+}
+
+async function callTeacher(name, btn) {
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = '호출 중...';
+  const { error } = await supabase.from('calls').insert({ teacher: name });
+
+  if (error) {
+    statusEl.textContent = '⚠️ 호출 실패: ' + error.message;
+    statusEl.style.color = '#f87171';
+    btn.disabled = false;
+    btn.textContent = original;
+    return;
+  }
+
+  btn.textContent = '호출됨 ✓';
+  statusEl.textContent = name + ' 선생님 호출 완료!';
+  statusEl.style.color = '#4ade80';
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = original;
+    statusEl.textContent = '';
+  }, COOLDOWN_SEC * 1000);
+}
+
+loadTeachers();
+</script>
+</body>
+</html>

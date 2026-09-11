@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>선생님 명단 관리</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #0f172a; color: #f1f5f9; padding: 32px; display: flex; flex-direction: column; align-items: center;
+  }
+  .wrap { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 28px; }
+  h1 { font-size: 24px; margin: 0; }
+  section {
+    background: #1e293b; border-radius: 16px; padding: 22px;
+  }
+  h2 { font-size: 17px; margin: 0 0 14px 0; color: #cbd5e1; }
+  .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  input[type="text"] {
+    flex: 1; padding: 12px 14px; border-radius: 10px; border: none;
+    background: #0f172a; color: #f1f5f9; font-size: 15px; min-width: 160px;
+  }
+  input[type="file"] { color: #cbd5e1; }
+  button {
+    padding: 12px 18px; border: none; border-radius: 10px; cursor: pointer;
+    font-size: 15px; font-weight: 600;
+  }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-secondary { background: #334155; color: #f1f5f9; }
+  .btn-danger { background: #dc2626; color: white; padding: 8px 14px; font-size: 13px; }
+  .btn-danger:hover { background: #b91c1c; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #0f172a; padding: 10px 14px; border-radius: 10px;
+  }
+  .preview-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .empty { color: #64748b; font-size: 14px; }
+  #msg { font-size: 14px; min-height: 20px; }
+  a.link { color: #60a5fa; text-decoration: none; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>👩‍🏫 선생님 명단 관리</h1>
+  <div id="msg"></div>
+
+  <section>
+    <h2>1. 엑셀로 일괄 추가</h2>
+    <p style="color:#94a3b8; font-size:13px; margin-top:0;">첫 번째 열(A열)에 있는 이름들을 읽어옵니다. 헤더 줄이 있다면 미리보기에서 체크 해제하세요.</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <div id="preview" style="margin-top:14px;"></div>
+    <button class="btn-primary" id="importBtn" style="display:none; margin-top:12px;" onclick="importChecked()">선택한 이름 추가</button>
+  </section>
+
+  <section>
+    <h2>2. 이름 직접 추가</h2>
+    <div class="row">
+      <input type="text" id="nameInput" placeholder="예: 김철수" onkeydown="if(event.key==='Enter') addOne()">
+      <button class="btn-primary" onclick="addOne()">추가</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>현재 등록된 선생님 (<span id="count">0</span>명)</h2>
+    <ul id="teacherList"></ul>
+  </section>
+
+  <a class="link" href="call.html">→ 학생용 호출 페이지 미리보기</a>
+</div>
+
+<script>
+// ====== 여기에 본인의 Supabase 프로젝트 정보를 입력하세요 (README 참고) ======
+const SUPABASE_URL = "https://bmixrutphsmokjmecagj.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtaXhydXRwaHNtb2tqbWVjYWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjYyMjEsImV4cCI6MjEwNDY0MjIyMX0.01EyU3EcUPyJZ6hq5YU90zcVFPquRybJkKUHobe1ZAs";
+// ============================================================================
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const msgEl = document.getElementById('msg');
+let parsedNames = [];
+
+function showMsg(text, isError) {
+  msgEl.textContent = text;
+  msgEl.style.color = isError ? '#f87171' : '#4ade80';
+  setTimeout(() => { msgEl.textContent = ''; }, 4000);
+}
+
+async function loadTeachers() {
+  const { data, error } = await supabase.from('teachers').select('*').order('name', { ascending: true });
+  const listEl = document.getElementById('teacherList');
+  if (error) {
+    listEl.innerHTML = '<li class="empty">⚠️ 불러오기 실패: ' + error.message + '</li>';
+    return;
+  }
+  document.getElementById('count').textContent = data.length;
+  if (data.length === 0) {
+    listEl.innerHTML = '<li class="empty">등록된 선생님이 없습니다</li>';
+    return;
+  }
+  listEl.innerHTML = data.map(t => `
+    <li>
+      <span>${t.name}</span>
+      <button class="btn-danger" onclick="deleteTeacher(${t.id})">삭제</button>
+    </li>
+  `).join('');
+}
+
+async function addOne() {
+  const input = document.getElementById('nameInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const { error } = await supabase.from('teachers').insert({ name });
+  if (error) {
+    showMsg('추가 실패: ' + error.message, true);
+  } else {
+    showMsg(name + ' 추가됨');
+    input.value = '';
+    loadTeachers();
+  }
+}
+
+async function deleteTeacher(id) {
+  const { error } = await supabase.from('teachers').delete().eq('id', id);
+  if (error) {
+    showMsg('삭제 실패: ' + error.message, true);
+  } else {
+    loadTeachers();
+  }
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    const wb = XLSX.read(evt.target.result, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    const names = [];
+    rows.forEach(r => {
+      const v = (r[0] ?? '').toString().trim();
+      if (v) names.push(v);
+    });
+    parsedNames = [...new Set(names)];
+    renderPreview();
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+function renderPreview() {
+  const previewEl = document.getElementById('preview');
+  const importBtn = document.getElementById('importBtn');
+  if (parsedNames.length === 0) {
+    previewEl.innerHTML = '<div class="empty">읽어온 이름이 없습니다.</div>';
+    importBtn.style.display = 'none';
+    return;
+  }
+  previewEl.innerHTML = parsedNames.map((n, i) => `
+    <label class="preview-item">
+      <input type="checkbox" checked data-idx="${i}">
+      <span>${n}</span>
+    </label>
+  `).join('');
+  importBtn.style.display = 'inline-block';
+}
+
+async function importChecked() {
+  const checked = Array.from(document.querySelectorAll('#preview input[type="checkbox"]:checked'))
+    .map(cb => parsedNames[cb.dataset.idx]);
+  if (checked.length === 0) return;
+
+  const rows = checked.map(name => ({ name }));
+  const { error } = await supabase.from('teachers').upsert(rows, { onConflict: 'name', ignoreDuplicates: true });
+
+  if (error) {
+    showMsg('일괄 추가 실패: ' + error.message, true);
+  } else {
+    showMsg(checked.length + '명 추가 완료');
+    parsedNames = [];
+    document.getElementById('preview').innerHTML = '';
+    document.getElementById('importBtn').style.display = 'none';
+    document.getElementById('fileInput').value = '';
+    loadTeachers();
+  }
+}
+
+loadTeachers();
+</script>
+</body>
+</html>
