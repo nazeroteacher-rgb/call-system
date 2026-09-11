@@ -40,21 +40,44 @@
   }
   .preview-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
   .empty { color: #64748b; font-size: 14px; }
-  #msg { font-size: 14px; min-height: 20px; }
   a.link { color: #60a5fa; text-decoration: none; font-size: 14px; }
+  #toast {
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    padding: 14px 22px; border-radius: 12px; font-size: 15px; font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); opacity: 0; pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease; z-index: 999; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.success { background: #16a34a; color: white; }
+  #toast.error { background: #dc2626; color: white; }
+  #pwOverlay {
+    position: fixed; inset: 0; background: #0f172a; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; z-index: 1000;
+  }
+  #pwOverlay input {
+    padding: 14px 16px; border-radius: 10px; border: none; font-size: 18px;
+    text-align: center; width: 220px; letter-spacing: 2px;
+  }
+  #pwError { color: #f87171; font-size: 14px; min-height: 18px; }
 </style>
 </head>
 <body>
+<div id="pwOverlay">
+  <div style="font-size:22px;">🔒 관리자 비밀번호</div>
+  <input type="password" id="pwInput" placeholder="비밀번호 입력" autofocus>
+  <button class="btn-primary" onclick="checkPassword()">확인</button>
+  <div id="pwError"></div>
+</div>
+<div id="toast"></div>
 <div class="wrap">
   <h1>👩‍🏫 선생님 명단 관리</h1>
-  <div id="msg"></div>
 
   <section>
     <h2>1. 엑셀로 일괄 추가</h2>
     <p style="color:#94a3b8; font-size:13px; margin-top:0;">첫 번째 열(A열)에 있는 이름들을 읽어옵니다. 헤더 줄이 있다면 미리보기에서 체크 해제하세요.</p>
     <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     <div id="preview" style="margin-top:14px;"></div>
-    <button class="btn-primary" id="importBtn" style="display:none; margin-top:12px;" onclick="importChecked()">선택한 이름 추가</button>
+    <button class="btn-primary" id="importBtn" style="display:none; margin-top:12px;" onclick="importChecked()">💾 저장하기</button>
   </section>
 
   <section>
@@ -80,13 +103,15 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 // ============================================================================
 
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const msgEl = document.getElementById('msg');
+const toastEl = document.getElementById('toast');
 let parsedNames = [];
+let toastTimer = null;
 
-function showMsg(text, isError) {
-  msgEl.textContent = text;
-  msgEl.style.color = isError ? '#f87171' : '#4ade80';
-  setTimeout(() => { msgEl.textContent = ''; }, 4000);
+function showToast(text, isError) {
+  clearTimeout(toastTimer);
+  toastEl.textContent = (isError ? '⚠️ ' : '✅ ') + text;
+  toastEl.className = isError ? 'error show' : 'success show';
+  toastTimer = setTimeout(() => { toastEl.className = isError ? 'error' : 'success'; }, 3500);
 }
 
 async function loadTeachers() {
@@ -115,9 +140,9 @@ async function addOne() {
   if (!name) return;
   const { error } = await supabase.from('teachers').insert({ name });
   if (error) {
-    showMsg('추가 실패: ' + error.message, true);
+    showToast('추가 실패: ' + error.message, true);
   } else {
-    showMsg(name + ' 추가됨');
+    showToast(name + ' 추가됨');
     input.value = '';
     loadTeachers();
   }
@@ -126,7 +151,7 @@ async function addOne() {
 async function deleteTeacher(id) {
   const { error } = await supabase.from('teachers').delete().eq('id', id);
   if (error) {
-    showMsg('삭제 실패: ' + error.message, true);
+    showToast('삭제 실패: ' + error.message, true);
   } else {
     loadTeachers();
   }
@@ -173,22 +198,64 @@ async function importChecked() {
     .map(cb => parsedNames[cb.dataset.idx]);
   if (checked.length === 0) return;
 
+  const importBtn = document.getElementById('importBtn');
+  importBtn.disabled = true;
+  importBtn.textContent = '저장 중...';
+
   const rows = checked.map(name => ({ name }));
-  const { error } = await supabase.from('teachers').upsert(rows, { onConflict: 'name', ignoreDuplicates: true });
+  const { data, error } = await supabase
+    .from('teachers')
+    .upsert(rows, { onConflict: 'name', ignoreDuplicates: true })
+    .select();
+
+  importBtn.disabled = false;
+  importBtn.textContent = '💾 저장하기';
 
   if (error) {
-    showMsg('일괄 추가 실패: ' + error.message, true);
+    showToast('Supabase 저장 실패: ' + error.message, true);
+    return;
+  }
+
+  // upsert 후 실제로 테이블에 존재하는지 재확인
+  const { data: verifyData, error: verifyError } = await supabase
+    .from('teachers')
+    .select('name')
+    .in('name', checked);
+
+  if (verifyError) {
+    showToast('저장은 됐지만 확인 중 오류: ' + verifyError.message, true);
+  } else if (verifyData.length >= checked.length) {
+    showToast(checked.length + '명 Supabase에 저장 완료');
   } else {
-    showMsg(checked.length + '명 추가 완료');
-    parsedNames = [];
-    document.getElementById('preview').innerHTML = '';
-    document.getElementById('importBtn').style.display = 'none';
-    document.getElementById('fileInput').value = '';
+    showToast('일부만 저장된 것 같습니다 (' + verifyData.length + '/' + checked.length + '명 확인됨)', true);
+  }
+
+  parsedNames = [];
+  document.getElementById('preview').innerHTML = '';
+  document.getElementById('importBtn').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  loadTeachers();
+}
+
+// ====== 관리자 비밀번호 (필요시 여기서 변경) ======
+const ADMIN_PASSWORD = "1922";
+// ==================================================
+
+function checkPassword() {
+  const val = document.getElementById('pwInput').value;
+  if (val === ADMIN_PASSWORD) {
+    document.getElementById('pwOverlay').remove();
     loadTeachers();
+  } else {
+    document.getElementById('pwError').textContent = '비밀번호가 틀렸습니다';
+    document.getElementById('pwInput').value = '';
+    document.getElementById('pwInput').focus();
   }
 }
 
-loadTeachers();
+document.getElementById('pwInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') checkPassword();
+});
 </script>
 </body>
 </html>
