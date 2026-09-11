@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>선생님 명단 관리</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #0f172a; color: #f1f5f9; padding: 32px; display: flex; flex-direction: column; align-items: center;
+  }
+  .wrap { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 28px; }
+  h1 { font-size: 24px; margin: 0; }
+  section {
+    background: #1e293b; border-radius: 16px; padding: 22px;
+  }
+  h2 { font-size: 17px; margin: 0 0 14px 0; color: #cbd5e1; }
+  .row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  input[type="text"] {
+    flex: 1; padding: 12px 14px; border-radius: 10px; border: none;
+    background: #0f172a; color: #f1f5f9; font-size: 15px; min-width: 160px;
+  }
+  input[type="file"] { color: #cbd5e1; }
+  button {
+    padding: 12px 18px; border: none; border-radius: 10px; cursor: pointer;
+    font-size: 15px; font-weight: 600;
+  }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-secondary { background: #334155; color: #f1f5f9; }
+  .btn-danger { background: #dc2626; color: white; padding: 8px 14px; font-size: 13px; }
+  .btn-danger:hover { background: #b91c1c; }
+  ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li {
+    display: flex; align-items: center; justify-content: space-between;
+    background: #0f172a; padding: 10px 14px; border-radius: 10px;
+  }
+  .preview-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .empty { color: #64748b; font-size: 14px; }
+  a.link { color: #60a5fa; text-decoration: none; font-size: 14px; }
+  #toast {
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    padding: 14px 22px; border-radius: 12px; font-size: 15px; font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35); opacity: 0; pointer-events: none;
+    transition: opacity .25s ease, transform .25s ease; z-index: 999; max-width: 90vw; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast.success { background: #16a34a; color: white; }
+  #toast.error { background: #dc2626; color: white; }
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="wrap">
+  <h1>👩‍🏫 선생님 명단 관리</h1>
+
+  <section>
+    <h2>1. 엑셀로 일괄 추가</h2>
+    <p style="color:#94a3b8; font-size:13px; margin-top:0;">첫 번째 열(A열)에 있는 이름들을 읽어옵니다. 헤더 줄이 있다면 미리보기에서 체크 해제하세요.</p>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+    <div id="preview" style="margin-top:14px;"></div>
+    <button class="btn-primary" id="importBtn" style="display:none; margin-top:12px;" onclick="importChecked()">💾 저장하기</button>
+  </section>
+
+  <section>
+    <h2>2. 이름 직접 추가</h2>
+    <div class="row">
+      <input type="text" id="nameInput" placeholder="예: 김철수" onkeydown="if(event.key==='Enter') addOne()">
+      <button class="btn-primary" onclick="addOne()">추가</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>현재 등록된 선생님 (<span id="count">0</span>명)</h2>
+    <ul id="teacherList"></ul>
+  </section>
+
+  <a class="link" href="call.html">→
