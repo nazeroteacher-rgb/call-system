@@ -46,6 +46,7 @@
     <button id="muteBtn" onclick="toggleMute()">🔊 소리 켜짐</button>
   </div>
 </header>
+<div id="soundHint" style="background:#f97316; color:white; padding:12px 18px; border-radius:10px; margin-bottom:16px; max-width:800px; font-size:16px; cursor:pointer;">🔔 소리를 켜려면 화면을 한 번 눌러주세요 (리모컨 확인 버튼)</div>
 <div id="list"><div class="empty">불러오는 중...</div></div>
 
 <script>
@@ -70,9 +71,47 @@ function toggleMute() {
   updateMuteBtn();
 }
 
-// 브라우저 내장 음성 합성(TTS)으로 선생님 이름을 직접 불러줌
+// ====== 선생님별 호출 음성(mp3) ======
+// mp3 파일이 있는 폴더 (저장소 맨 위에 바로 올렸다면 '' 로 바꾸세요)
+const VOICE_DIR = 'voice/';
+const VOICE_FILES = {
+  '구시은': 't01.mp3', '김경아': 't02.mp3', '김나영': 't03.mp3',
+  '김미진': 't04.mp3', '김영일': 't05.mp3', '김윤정': 't06.mp3',
+  '김한주': 't07.mp3', '류고운': 't08.mp3', '안효만': 't09.mp3',
+  '엄숙용': 't10.mp3', '유중열': 't11.mp3', '이석기': 't12.mp3',
+  '임은빈': 't13.mp3', '전은미': 't14.mp3', '최규환': 't15.mp3',
+  '최지유': 't16.mp3', '한송희': 't17.mp3',
+};
+
+// 하나의 오디오 플레이어를 계속 재사용 (TV 브라우저에서 한 번 잠금 해제한 플레이어만 소리를 낼 수 있음)
+const player = new Audio();
+const voiceQueue = [];
+let playing = false;
+
+function playNext() {
+  if (playing || voiceQueue.length === 0) return;
+  playing = true;
+  player.muted = false;
+  player.src = voiceQueue.shift();
+  player.play().catch(() => { playing = false; playNext(); });
+}
+player.addEventListener('ended', () => { playing = false; playNext(); });
+player.addEventListener('error', () => { playing = false; playNext(); });
+
+// 호출이 오면: mp3가 있으면 mp3 재생, 없으면(새로 추가된 선생님 등) 기존 TTS로 읽기
 function speakTeacherName(name, subject) {
   if (muted) return;
+  const file = VOICE_FILES[name];
+  if (file) {
+    voiceQueue.push(VOICE_DIR + file);
+    playNext();
+  } else {
+    speakTTS(name, subject);
+  }
+}
+
+// 브라우저 내장 음성 합성(TTS)으로 선생님 이름을 직접 불러줌 (PC용 예비 방식)
+function speakTTS(name, subject) {
   try {
     const text = subject
       ? `${subject} 담당, ${name} 선생님, 호출입니다.`
@@ -164,15 +203,27 @@ async function markAway(id, teacherName, isAuto) {
 
 // 브라우저는 사용자가 페이지를 한 번 클릭하기 전까지 자동 음성 재생을 막는 경우가 많아,
 // 첫 클릭 시 무음으로 한 번 실행해서 미리 "잠금 해제"해 둠
+// (TV 리모컨의 확인 버튼은 keydown으로 들어올 수 있어서 둘 다 처리)
 let audioUnlocked = false;
-document.addEventListener('click', () => {
+function unlockAudio() {
   if (audioUnlocked) return;
   audioUnlocked = true;
+  // mp3 플레이어 잠금 해제: 소리 없이 한 번 재생했다 멈춤
+  if (!playing) {
+    player.muted = true;
+    player.src = VOICE_DIR + 't01.mp3';
+    player.play().then(() => { player.pause(); player.currentTime = 0; player.muted = false; })
+                 .catch(() => { player.muted = false; });
+  }
   try {
     const unlockUtter = new SpeechSynthesisUtterance('');
     window.speechSynthesis.speak(unlockUtter);
   } catch (e) {}
-}, { once: true });
+  const hint = document.getElementById('soundHint');
+  if (hint) hint.remove();
+}
+document.addEventListener('click', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
 
 setInterval(refresh, 2000);
 refresh();
