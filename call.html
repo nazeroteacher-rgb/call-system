@@ -73,6 +73,30 @@ const grid = document.getElementById('grid');
 const statusEl = document.getElementById('status');
 const trackingEl = document.getElementById('trackingStatus');
 
+// ====== '자리에 없음' 안내 음성 (브라우저 내장 TTS, Windows 한국어 음성 사용) ======
+function announceAway(name) {
+  try {
+    const u = new SpeechSynthesisUtterance(name + ' 선생님은 자리에 계시지 않습니다.');
+    u.lang = 'ko-KR';
+    u.rate = 1;
+    window.speechSynthesis.speak(u); // 여러 명이면 자동으로 차례대로 읽음
+  } catch (e) {}
+}
+
+// 브라우저는 화면을 한 번 누르기 전에는 소리를 막으므로, 첫 터치 때 미리 잠금 해제
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio);
+document.addEventListener('click', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
+
+// 직전에 '부재중'이었던 선생님 목록 (새로 부재중이 된 순간에만 음성 안내)
+let prevAwayNames = null;
+
 let tracking = null; // { id, pollHandle, timeoutHandle }
 let lastTeachers = [];
 let cooldownUntil = {}; // teacherName -> timestamp(ms)
@@ -123,6 +147,17 @@ async function loadTeachers() {
     return;
   }
   lastTeachers = data;
+
+  // 현황판에서 '자리에 없음'을 누르면(또는 5분 자동 처리) away_until이 생김 → 새로 생긴 경우 음성 안내
+  const now = Date.now();
+  const awayNow = new Set(
+    data.filter(t => t.away_until && new Date(t.away_until).getTime() > now).map(t => t.name)
+  );
+  if (prevAwayNames !== null) {
+    awayNow.forEach(name => { if (!prevAwayNames.has(name)) announceAway(name); });
+  }
+  prevAwayNames = awayNow;
+
   renderTeachers();
 }
 
@@ -194,7 +229,7 @@ async function callTeacher(name, subject) {
 }
 
 loadTeachers();
-setInterval(loadTeachers, 5000);
+setInterval(loadTeachers, 3000);
 </script>
 </body>
 </html>
