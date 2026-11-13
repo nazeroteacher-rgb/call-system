@@ -40,16 +40,17 @@
   button.teacher .subject { font-size: 13px; font-weight: 400; color: #94a3b8; margin-top: 4px; }
   button.teacher.away { background: #451a1a; color: #fca5a5; cursor: not-allowed; opacity: 0.85; }
   button.teacher.away .subject { color: #fca5a5; }
+  /* 부재중 안내: 오른쪽 메모 칸 맨 위에 작게 표시 (호출 버튼을 가리지 않음) */
   #awayBanner {
-    display: none; width: 100%; max-width: 720px;
-    background: #7f1d1d; border: 3px solid #ef4444; border-radius: 18px;
-    padding: 26px 28px; text-align: center;
+    display: none; width: 100%;
+    background: #7f1d1d; border: 2px solid #ef4444; border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 16px;
   }
   #awayBanner.show { display: block; animation: pop .25s ease; }
   #awayBanner .banner-title {
-    font-size: 34px; font-weight: 900; color: #fecaca; margin-bottom: 10px;
+    font-size: 17px; font-weight: 900; color: #fecaca; margin-bottom: 6px;
   }
-  #awayBanner .banner-list { font-size: 24px; font-weight: 700; color: #fca5a5; line-height: 1.6; }
+  #awayBanner .banner-list { display: flex; flex-direction: column; gap: 6px; }
   @keyframes pop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   #status { font-size: 18px; min-height: 28px; text-align: center; color: #4ade80; font-weight: 600; }
   #trackingStatus {
@@ -60,8 +61,9 @@
   #trackingStatus.away { background: #451a1a; color: #fca5a5; display: block; }
   #trackingStatus.done { background: #14532d; color: #86efac; display: block; }
   .empty { color: #64748b; font-size: 16px; text-align: center; }
-  #awayBanner .banner-item { margin-top: 8px; }
-  #awayBanner .banner-msg { font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px; }
+  #awayBanner .banner-item { background: rgba(0,0,0,.18); border-radius: 10px; padding: 8px 12px; }
+  #awayBanner .banner-name { font-size: 15px; font-weight: 700; color: #fca5a5; }
+  #awayBanner .banner-msg { font-size: 18px; font-weight: 800; color: #fff; margin-top: 2px; word-break: break-all; }
   #trackingStatus .track-msg { font-size: 20px; font-weight: 800; color: #fff; margin-top: 6px; }
   .memo-open-btn {
     background: #7c3aed; border: none; color: white; padding: 14px 22px;
@@ -103,7 +105,6 @@
 </head>
 <body>
  <div class="left-col">
-  <div id="awayBanner"></div>
   <div id="soundHint" onclick="this.remove()" style="width:100%; max-width:720px; background:#f97316; color:white; padding:12px 18px; border-radius:12px; font-size:16px; text-align:center; cursor:pointer;">🔊 음성 안내를 들으려면 화면을 한 번 클릭해 주세요</div>
   <h1>🔔 선생님 호출</h1>
   <div class="sub">호출할 선생님을 눌러주세요</div>
@@ -113,6 +114,7 @@
  </div>
 
   <div id="memoSection">
+    <div id="awayBanner"></div>
     <button class="memo-open-btn" style="width:100%; margin-bottom:18px;" onclick="openMemoModal()">📝 선생님께 메모 남기기</button>
     <h2>📝 오늘 남긴 메모</h2>
     <div id="memoList"><div class="empty">불러오는 중...</div></div>
@@ -364,9 +366,9 @@ function renderTeachers() {
   if (awayTeachers.length > 0) {
     bannerEl.className = 'show';
     bannerEl.innerHTML =
-      '<div class="banner-title">🚫 지금 자리를 비우신 선생님이 있습니다</div>' +
+      '<div class="banner-title">🚫 자리를 비우신 선생님 (' + awayTeachers.length + '명)</div>' +
       '<div class="banner-list">' + awayTeachers.map(t =>
-        '<div class="banner-item">' + esc(t.name) + ' 선생님 부재중' +
+        '<div class="banner-item"><div class="banner-name">' + esc(t.name) + ' 선생님 부재중</div>' +
         (t.away_message ? '<div class="banner-msg">💬 ' + esc(t.away_message) + '</div>' : '') +
         '</div>').join('') + '</div>';
   } else {
