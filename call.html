@@ -104,6 +104,7 @@
 <body>
  <div class="left-col">
   <div id="awayBanner"></div>
+  <div id="soundHint" onclick="this.remove()" style="width:100%; max-width:720px; background:#f97316; color:white; padding:12px 18px; border-radius:12px; font-size:16px; text-align:center; cursor:pointer;">🔊 음성 안내를 들으려면 화면을 한 번 클릭해 주세요</div>
   <h1>🔔 선생님 호출</h1>
   <div class="sub">호출할 선생님을 눌러주세요</div>
   <div class="grid" id="grid"><div class="empty">불러오는 중...</div></div>
@@ -154,6 +155,11 @@ function announceAway(name, message) {
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ko-KR';
     u.rate = 1;
+    // 이 PC에 설치된 한국어 음성을 직접 지정 (온라인 음성보다 안정적)
+    const voices = window.speechSynthesis.getVoices().filter(v => v.lang && v.lang.replace('_', '-').startsWith('ko'));
+    const voice = voices.find(v => v.localService) || voices[0];
+    if (voice) u.voice = voice;
+    window.speechSynthesis.resume(); // 크롬에서 음성이 멈춰 있는 경우 대비
     window.speechSynthesis.speak(u); // 여러 명이면 자동으로 차례대로 읽음
   } catch (e) {}
 }
@@ -161,10 +167,13 @@ function announceAway(name, message) {
 // 브라우저는 화면을 한 번 누르기 전에는 소리를 막으므로, 첫 터치 때 미리 잠금 해제
 let audioUnlocked = false;
 function unlockAudio() {
+  const hint = document.getElementById('soundHint');
+  if (hint) hint.remove();
   if (audioUnlocked) return;
   audioUnlocked = true;
   try { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {}
 }
+try { window.speechSynthesis.getVoices(); } catch (e) {} // 음성 목록 미리 불러오기
 document.addEventListener('pointerdown', unlockAudio);
 document.addEventListener('click', unlockAudio);
 document.addEventListener('keydown', unlockAudio);
@@ -326,11 +335,13 @@ async function loadTeachers() {
   const now = Date.now();
   const awayNow = new Map(
     data.filter(t => t.away_until && new Date(t.away_until).getTime() > now)
-        .map(t => [t.name, t.away_message || ''])
+        .map(t => [t.name, { key: t.away_until + '|' + (t.away_message || ''), msg: t.away_message || '' }])
   );
   if (prevAwayNames !== null) {
-    awayNow.forEach((msg, name) => {
-      if (!prevAwayNames.has(name) || prevAwayNames.get(name) !== msg) announceAway(name, msg);
+    awayNow.forEach((info, name) => {
+      const prev = prevAwayNames.get(name);
+      // 새로 부재중이 됐거나, 선생님이 메시지/부재를 다시 보낸 경우(부재 시간이 바뀜) 읽어줌
+      if (!prev || prev.key !== info.key) announceAway(name, info.msg);
     });
   }
   prevAwayNames = awayNow;
