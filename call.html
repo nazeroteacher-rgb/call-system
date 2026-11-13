@@ -8,10 +8,19 @@
 <style>
   * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 24px;
+    margin: 0; min-height: 100vh; display: flex; flex-direction: row;
+    align-items: flex-start; justify-content: center; gap: 32px;
     font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
     background: #0f172a; color: #f1f5f9; padding: 24px;
+  }
+  /* 왼쪽: 호출 버튼 / 오른쪽: 메모 */
+  .left-col {
+    flex: 1 1 720px; max-width: 760px; display: flex; flex-direction: column;
+    align-items: center; gap: 24px;
+  }
+  @media (max-width: 1000px) {
+    body { flex-direction: column; align-items: center; }
+    .left-col { flex: none; width: 100%; }
   }
   h1 { font-size: 28px; margin: 0; text-align: center; }
   .sub { color: #94a3b8; margin-top: -12px; text-align: center; }
@@ -72,7 +81,11 @@
   .modal-send { background: #7c3aed; }
   #memoError { color: #f87171; font-size: 14px; min-height: 20px; margin-top: 8px; }
   /* 남겨진 메모 목록 */
-  #memoSection { width: 100%; max-width: 720px; }
+  #memoSection {
+    flex: 0 1 420px; width: 100%; max-width: 720px;
+    position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  @media (max-width: 1000px) { #memoSection { position: static; max-height: none; } }
   #memoSection h2 { font-size: 20px; margin: 8px 0 12px; }
   #memoList { display: flex; flex-direction: column; gap: 10px; }
   .memo-card { background: #1e293b; border-left: 6px solid #a78bfa; border-radius: 12px; padding: 12px 18px; }
@@ -83,15 +96,17 @@
 </style>
 </head>
 <body>
+ <div class="left-col">
   <div id="awayBanner"></div>
   <h1>🔔 선생님 호출</h1>
   <div class="sub">호출할 선생님을 눌러주세요</div>
   <div class="grid" id="grid"><div class="empty">불러오는 중...</div></div>
   <div id="status"></div>
   <div id="trackingStatus"></div>
-  <button class="memo-open-btn" onclick="openMemoModal()">📝 선생님께 메모 남기기</button>
+ </div>
 
   <div id="memoSection">
+    <button class="memo-open-btn" style="width:100%; margin-bottom:18px;" onclick="openMemoModal()">📝 선생님께 메모 남기기</button>
     <h2>📝 오늘 남긴 메모</h2>
     <div id="memoList"><div class="empty">불러오는 중...</div></div>
   </div>
