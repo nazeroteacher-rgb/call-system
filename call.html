@@ -93,6 +93,10 @@
   .memo-state.done { color: #4ade80; }
   .memo-state.wait { color: #94a3b8; }
   .memo-text { font-size: 17px; margin-top: 6px; white-space: pre-wrap; word-break: break-all; }
+  .memo-body { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; }
+  .del-btn { flex: none; background: #475569; border: none; color: white; padding: 7px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+  .del-btn:hover { background: #b91c1c; }
+  .del-btn.armed { background: #dc2626; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -255,6 +259,30 @@ async function sendMemo() {
   loadMemos();
 }
 
+// 메모 삭제: 한 번 누르면 '정말 삭제?'로 바뀌고, 3초 안에 다시 누르면 삭제
+const deleteArmed = new Set();
+async function deleteMemo(btn) {
+  const id = Number(btn.dataset.id);
+  if (!deleteArmed.has(id)) {
+    deleteArmed.add(id);
+    btn.textContent = '정말 삭제?';
+    btn.classList.add('armed');
+    setTimeout(() => {
+      deleteArmed.delete(id);
+      // 그사이 목록이 새로 그려졌을 수 있으므로 화면의 같은 버튼을 찾아 되돌림
+      document.querySelectorAll('.del-btn[data-id="' + id + '"]').forEach(b => { b.textContent = '삭제'; b.classList.remove('armed'); });
+    }, 3000);
+    return;
+  }
+  deleteArmed.delete(id);
+  const { error } = await sb.from('memos').delete().eq('id', id);
+  if (error) {
+    statusEl.textContent = '⚠️ 메모 삭제 실패: ' + error.message;
+    statusEl.style.color = '#f87171';
+  }
+  loadMemos();
+}
+
 // 오늘 남긴 메모 목록 (선생님이 '확인'을 누르면 확인함으로 바뀜)
 async function loadMemos() {
   const el = document.getElementById('memoList');
@@ -276,7 +304,9 @@ async function loadMemos() {
     return '<div class="memo-card">' +
       '<div class="memo-head"><span>' + esc(m.teacher) + ' 선생님께 · ' + time + '</span>' +
       (m.done ? '<span class="memo-state done">✅ 선생님 확인함</span>' : '<span class="memo-state wait">확인 대기</span>') +
-      '</div><div class="memo-text">' + esc(m.content) + '</div></div>';
+      '</div><div class="memo-body"><div class="memo-text">' + esc(m.content) + '</div>' +
+      '<button class="del-btn' + (deleteArmed.has(m.id) ? ' armed' : '') + '" data-id="' + m.id + '" onclick="deleteMemo(this)">' +
+      (deleteArmed.has(m.id) ? '정말 삭제?' : '삭제') + '</button></div></div>';
   }).join('');
 }
 
