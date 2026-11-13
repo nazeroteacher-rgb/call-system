@@ -59,9 +59,16 @@
   .memo-text { font-size: 18px; margin-top: 4px; white-space: pre-wrap; word-break: break-all; }
   .memo-time { font-size: 13px; color: #94a3b8; margin-top: 4px; }
   .memo-empty { color: #64748b; font-size: 15px; }
-  .del-btn { background: #475569; border: none; color: white; padding: 10px 16px; border-radius: 10px; font-size: 14px; cursor: pointer; }
+  /* 삭제만 빨간 버튼 */
+  .del-btn { background: #dc2626; border: none; color: white; padding: 10px 16px; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; }
   .del-btn:hover { background: #b91c1c; }
-  .del-btn.armed { background: #dc2626; font-weight: 700; }
+  .del-btn.armed { background: #7f1d1d; outline: 2px solid #fca5a5; }
+  /* 확인한 메모: 흐리게(음영) 남겨둠 */
+  .memo-card.done { background: #151e2e; border-left-color: #475569; }
+  .memo-card.done .memo-to, .memo-card.done .memo-text, .memo-card.done .memo-time { opacity: .45; }
+  .memo-card.done .memo-text { text-decoration: line-through; }
+  .checked-btn { background: #334155; border: none; color: #94a3b8; padding: 10px 16px; border-radius: 10px; font-size: 14px; cursor: pointer; }
+  .checked-btn:hover { background: #475569; color: #e2e8f0; }
   .empty { color: #64748b; text-align: center; margin-top: 60px; font-size: 18px; }
   .error { color: #f87171; text-align: center; margin-top: 60px; font-size: 16px; }
 </style>
@@ -294,7 +301,10 @@ function alertBox(text) {
 // ====== 학생 메모 ======
 async function refreshMemos() {
   const el = document.getElementById('memoList');
-  const { data, error } = await sb.from('memos').select('*').eq('done', false).order('created_at', { ascending: true });
+  // 확인한 메모도 삭제하기 전까지는 흐리게 남겨둠 (확인 안 한 메모가 위, 확인한 메모가 아래)
+  const res = await sb.from('memos').select('*').order('created_at', { ascending: true });
+  const error = res.error;
+  const data = error ? [] : [...res.data.filter(m => !m.done), ...res.data.filter(m => m.done).reverse()];
   if (error) {
     el.innerHTML = '<div class="memo-empty">⚠️ 메모를 불러올 수 없습니다 (Supabase에 memos 표가 있는지 확인하세요)</div>';
     return;
@@ -304,15 +314,17 @@ async function refreshMemos() {
     return;
   }
   el.innerHTML = data.map(m => `
-    <div class="memo-card">
+    <div class="memo-card${m.done ? ' done' : ''}">
       <div>
-        <div class="memo-to">${esc(m.teacher)} 선생님께</div>
+        <div class="memo-to">${esc(m.teacher)} 선생님께${m.done ? ' · ✅ 확인함' : ''}</div>
         <div class="memo-text">${esc(m.content)}</div>
         <div class="memo-time">${timeAgo(m.created_at)}</div>
       </div>
       <div class="btn-group">
         <button class="del-btn${deleteArmed.has(m.id) ? ' armed' : ''}" data-id="${m.id}" onclick="deleteMemo(this)">${deleteArmed.has(m.id) ? '정말 삭제?' : '삭제'}</button>
-        <button class="resolve-btn" onclick="checkMemo(${m.id})">확인</button>
+        ${m.done
+          ? `<button class="checked-btn" onclick="checkMemo(${m.id}, false)" title="누르면 확인 전으로 되돌립니다">확인 취소</button>`
+          : `<button class="resolve-btn" onclick="checkMemo(${m.id}, true)">확인</button>`}
       </div>
     </div>
   `).join('');
@@ -337,8 +349,8 @@ async function deleteMemo(btn) {
   if (error) console.error('메모 삭제 실패:', error.message);
   refreshMemos();
 }
-async function checkMemo(id) {
-  await sb.from('memos').update({ done: true }).eq('id', id);
+async function checkMemo(id, done) {
+  await sb.from('memos').update({ done: done }).eq('id', id);
   refreshMemos();
 }
 
