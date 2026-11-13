@@ -3,108 +3,127 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>호출 현황판</title>
+<title>선생님 호출</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100vh; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-    background: #0f172a; color: #f1f5f9; padding: 32px;
+    margin: 0; min-height: 100vh; display: flex; flex-direction: row;
+    align-items: flex-start; justify-content: center; gap: 32px;
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+    background: #0f172a; color: #f1f5f9; padding: 24px;
   }
-  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;}
-  h1 { margin: 0; font-size: 26px; }
-  #muteBtn { background: #1e293b; border: none; color: #f1f5f9; padding: 10px 18px; border-radius: 10px; cursor: pointer; font-size: 15px;}
-  #list { display: flex; flex-direction: column; gap: 12px; max-width: 800px; }
-  .call-card {
-    display: flex; align-items: center; justify-content: space-between;
-    background: #1e293b; border-left: 6px solid #f97316; border-radius: 12px;
-    padding: 18px 22px; animation: pop .25s ease;
+  /* 왼쪽: 호출 버튼 / 오른쪽: 메모 */
+  .left-col {
+    flex: 1 1 720px; max-width: 760px; display: flex; flex-direction: column;
+    align-items: center; gap: 24px;
   }
+  @media (max-width: 1000px) {
+    body { flex-direction: column; align-items: center; }
+    .left-col { flex: none; width: 100%; }
+  }
+  h1 { font-size: 28px; margin: 0; text-align: center; }
+  .sub { color: #94a3b8; margin-top: -12px; text-align: center; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px; width: 100%; max-width: 720px;
+  }
+  button.teacher {
+    padding: 28px 12px; font-size: 22px; font-weight: 700;
+    border: none; border-radius: 16px; background: #1e293b; color: #f1f5f9;
+    cursor: pointer; transition: transform .1s, background .2s;
+  }
+  button.teacher:active { transform: scale(0.96); }
+  button.teacher:hover { background: #334155; }
+  button.teacher:disabled { background: #16a34a; color: white; cursor: not-allowed; }
+  button.teacher .subject { font-size: 13px; font-weight: 400; color: #94a3b8; margin-top: 4px; }
+  button.teacher.away { background: #451a1a; color: #fca5a5; cursor: not-allowed; opacity: 0.85; }
+  button.teacher.away .subject { color: #fca5a5; }
+  #awayBanner {
+    display: none; width: 100%; max-width: 720px;
+    background: #7f1d1d; border: 3px solid #ef4444; border-radius: 18px;
+    padding: 26px 28px; text-align: center;
+  }
+  #awayBanner.show { display: block; animation: pop .25s ease; }
+  #awayBanner .banner-title {
+    font-size: 34px; font-weight: 900; color: #fecaca; margin-bottom: 10px;
+  }
+  #awayBanner .banner-list { font-size: 24px; font-weight: 700; color: #fca5a5; line-height: 1.6; }
   @keyframes pop { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-  .call-room { font-size: 22px; font-weight: 700; }
-  .call-time { font-size: 14px; color: #94a3b8; margin-top: 4px; }
-  .resolve-btn {
-    background: #16a34a; border: none; color: white; padding: 10px 18px;
-    border-radius: 10px; font-size: 15px; cursor: pointer;
+  #status { font-size: 18px; min-height: 28px; text-align: center; color: #4ade80; font-weight: 600; }
+  #trackingStatus {
+    max-width: 560px; width: 100%; text-align: center; font-size: 16px;
+    padding: 14px 18px; border-radius: 12px; display: none;
   }
-  .resolve-btn:hover { background: #15803d; }
-  .away-btn {
-    background: #475569; border: none; color: white; padding: 10px 16px;
-    border-radius: 10px; font-size: 14px; cursor: pointer;
+  #trackingStatus.waiting { background: #1e293b; color: #93c5fd; display: block; }
+  #trackingStatus.away { background: #451a1a; color: #fca5a5; display: block; }
+  #trackingStatus.done { background: #14532d; color: #86efac; display: block; }
+  .empty { color: #64748b; font-size: 16px; text-align: center; }
+  #awayBanner .banner-item { margin-top: 8px; }
+  #awayBanner .banner-msg { font-size: 26px; font-weight: 800; color: #fff; margin-top: 4px; }
+  #trackingStatus .track-msg { font-size: 20px; font-weight: 800; color: #fff; margin-top: 6px; }
+  .memo-open-btn {
+    background: #7c3aed; border: none; color: white; padding: 14px 22px;
+    border-radius: 12px; font-size: 17px; font-weight: 700; cursor: pointer;
   }
-  .away-btn:hover { background: #334155; }
-  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-  .msg-btn {
-    background: #2563eb; border: none; color: white; padding: 10px 16px;
-    border-radius: 10px; font-size: 14px; cursor: pointer;
-  }
-  .msg-btn:hover { background: #1d4ed8; }
-  /* 메시지 남기기 창 */
+  .memo-open-btn:hover { background: #6d28d9; }
+  #trackingStatus .memo-open-btn { margin-top: 12px; font-size: 15px; padding: 10px 16px; }
+  /* 메모 남기기 창 */
   .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); align-items: center; justify-content: center; z-index: 10; padding: 20px; }
   .modal-bg.show { display: flex; }
   .modal { background: #1e293b; border-radius: 16px; padding: 24px; width: 100%; max-width: 520px; }
-  .modal h2 { margin: 0 0 14px; font-size: 20px; }
-  .presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-  .presets button { background: #334155; border: none; color: #f1f5f9; padding: 9px 12px; border-radius: 8px; font-size: 14px; cursor: pointer; }
-  .presets button:hover, .presets button:focus { background: #475569; }
-  .modal textarea { width: 100%; height: 80px; border-radius: 10px; border: none; padding: 12px; font-size: 16px; font-family: inherit; resize: none; }
-  .modal-row { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; gap: 10px; flex-wrap: wrap; }
-  .modal select { padding: 8px; border-radius: 8px; font-size: 15px; }
-  .cancel-btn { background: #475569; border: none; color: white; padding: 10px 18px; border-radius: 10px; font-size: 15px; cursor: pointer; }
-  /* 학생 메모 */
-  .section-title { font-size: 20px; margin: 36px 0 12px; }
-  #memoList { display: flex; flex-direction: column; gap: 10px; max-width: 800px; }
-  .memo-card { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: #1e293b; border-left: 6px solid #a78bfa; border-radius: 12px; padding: 14px 20px; }
-  .memo-to { font-size: 15px; color: #c4b5fd; font-weight: 700; }
-  .memo-text { font-size: 18px; margin-top: 4px; white-space: pre-wrap; word-break: break-all; }
-  .memo-time { font-size: 13px; color: #94a3b8; margin-top: 4px; }
-  .memo-empty { color: #64748b; font-size: 15px; }
-  .empty { color: #64748b; text-align: center; margin-top: 60px; font-size: 18px; }
-  .error { color: #f87171; text-align: center; margin-top: 60px; font-size: 16px; }
+  .modal h2 { margin: 0 0 14px; font-size: 22px; }
+  .modal select, .modal textarea { width: 100%; border-radius: 10px; border: none; padding: 12px; font-size: 17px; font-family: inherit; }
+  .modal textarea { height: 110px; resize: none; margin-top: 10px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+  .modal-actions button { border: none; color: white; padding: 12px 20px; border-radius: 10px; font-size: 16px; cursor: pointer; }
+  .modal-cancel { background: #475569; }
+  .modal-send { background: #7c3aed; }
+  #memoError { color: #f87171; font-size: 14px; min-height: 20px; margin-top: 8px; }
+  /* 남겨진 메모 목록 */
+  #memoSection {
+    flex: 0 1 420px; width: 100%; max-width: 720px;
+    position: sticky; top: 24px; max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  @media (max-width: 1000px) { #memoSection { position: static; max-height: none; } }
+  #memoSection h2 { font-size: 20px; margin: 8px 0 12px; }
+  #memoList { display: flex; flex-direction: column; gap: 10px; }
+  .memo-card { background: #1e293b; border-left: 6px solid #a78bfa; border-radius: 12px; padding: 12px 18px; }
+  .memo-head { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; color: #c4b5fd; font-weight: 700; }
+  .memo-state.done { color: #4ade80; }
+  .memo-state.wait { color: #94a3b8; }
+  .memo-text { font-size: 17px; margin-top: 6px; white-space: pre-wrap; word-break: break-all; }
 </style>
 </head>
 <body>
-<header>
-  <h1>📋 호출 현황판</h1>
-  <div style="display:flex; gap:10px; align-items:center;">
-    <a href="manage.html" style="color:#60a5fa; font-size:14px; text-decoration:none;">선생님 명단 관리 →</a>
-    <button id="muteBtn" onclick="toggleMute()">🔊 소리 켜짐</button>
+ <div class="left-col">
+  <div id="awayBanner"></div>
+  <h1>🔔 선생님 호출</h1>
+  <div class="sub">호출할 선생님을 눌러주세요</div>
+  <div class="grid" id="grid"><div class="empty">불러오는 중...</div></div>
+  <div id="status"></div>
+  <div id="trackingStatus"></div>
+ </div>
+
+  <div id="memoSection">
+    <button class="memo-open-btn" style="width:100%; margin-bottom:18px;" onclick="openMemoModal()">📝 선생님께 메모 남기기</button>
+    <h2>📝 오늘 남긴 메모</h2>
+    <div id="memoList"><div class="empty">불러오는 중...</div></div>
   </div>
-</header>
-<div id="soundHint" style="background:#f97316; color:white; padding:12px 18px; border-radius:10px; margin-bottom:16px; max-width:800px; font-size:16px; cursor:pointer;">🔔 소리를 켜려면 화면을 한 번 눌러주세요 (리모컨 확인 버튼)</div>
-<div id="list"><div class="empty">불러오는 중...</div></div>
 
-<h2 class="section-title">📝 학생이 남긴 메모</h2>
-<div id="memoList"><div class="memo-empty">불러오는 중...</div></div>
-
-<!-- 메시지 남기기 창 -->
-<div class="modal-bg" id="msgModal">
-  <div class="modal">
-    <h2 id="msgTitle">메시지 남기기</h2>
-    <div class="presets">
-      <button onclick="setPreset('수업 중입니다.')">수업 중입니다</button>
-      <button onclick="setPreset('회의 중입니다.')">회의 중입니다</button>
-      <button onclick="setPreset('10분 뒤에 다시 호출해 주세요.')">10분 뒤 다시 호출</button>
-      <button onclick="setPreset('교무실로 직접 와 주세요.')">교무실로 와 주세요</button>
-      <button onclick="setPreset('메모를 남겨 주세요.')">메모 남겨 주세요</button>
-    </div>
-    <textarea id="msgText" maxlength="100" placeholder="학생 화면에 보여주고 읽어줄 메시지 (100자 이내)"></textarea>
-    <div class="modal-row">
-      <label>표시 시간
-        <select id="msgDur">
-          <option value="5">5분</option>
-          <option value="10" selected>10분</option>
-          <option value="30">30분</option>
-          <option value="60">1시간</option>
-        </select>
-      </label>
-      <div class="btn-group">
-        <button class="cancel-btn" onclick="closeMsgModal()">취소</button>
-        <button class="resolve-btn" onclick="sendMessage()">보내기</button>
+  <!-- 메모 남기기 창 -->
+  <div class="modal-bg" id="memoModal">
+    <div class="modal">
+      <h2>📝 선생님께 메모 남기기</h2>
+      <select id="memoTeacher"></select>
+      <textarea id="memoText" maxlength="100" placeholder="예: 2학년 3반 홍길동입니다. 수행평가 자료 드리러 왔다가 갑니다."></textarea>
+      <div id="memoError"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeMemoModal()">취소</button>
+        <button class="modal-send" onclick="sendMemo()">남기기</button>
       </div>
     </div>
   </div>
-</div>
 
 <script>
 // ====== 여기에 본인의 Supabase 프로젝트 정보를 입력하세요 (README 참고) ======
@@ -112,138 +131,94 @@ const SUPABASE_URL = "https://bmixrutphsmokjmecagj.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJtaXhydXRwaHNtb2tqbWVjYWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkwNjYyMjEsImV4cCI6MjEwNDY0MjIyMX0.01EyU3EcUPyJZ6hq5YU90zcVFPquRybJkKUHobe1ZAs";
 // ============================================================================
 
+const COOLDOWN_SEC = 8;
+const AWAY_TIMEOUT_SEC = 180; // 3분
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const grid = document.getElementById('grid');
+const statusEl = document.getElementById('status');
+const trackingEl = document.getElementById('trackingStatus');
 
-let knownIds = new Set();
-let firstLoad = true;
-let muted = localStorage.getItem('callMuted') === '1';
-updateMuteBtn();
-
-function updateMuteBtn() {
-  document.getElementById('muteBtn').textContent = muted ? '🔇 소리 꺼짐' : '🔊 소리 켜짐';
-}
-function toggleMute() {
-  muted = !muted;
-  localStorage.setItem('callMuted', muted ? '1' : '0');
-  updateMuteBtn();
-}
-
-// ====== 선생님별 호출 음성(mp3) ======
-// mp3 파일이 있는 폴더 (저장소 맨 위에 바로 올렸다면 '' 로 바꾸세요)
-const VOICE_DIR = 'voice/';
-const VOICE_FILES = {
-  '구시은': 't01.mp3', '김경아': 't02.mp3', '김나영': 't03.mp3',
-  '김미진': 't04.mp3', '김영일': 't05.mp3', '김윤정': 't06.mp3',
-  '김한주': 't07.mp3', '류고운': 't08.mp3', '안효만': 't09.mp3',
-  '엄숙용': 't10.mp3', '유중열': 't11.mp3', '이석기': 't12.mp3',
-  '임은빈': 't13.mp3', '전은미': 't14.mp3', '최규환': 't15.mp3',
-  '최지유': 't16.mp3', '한송희': 't17.mp3',
-};
-
-// 하나의 오디오 플레이어를 계속 재사용 (TV 브라우저에서 한 번 잠금 해제한 플레이어만 소리를 낼 수 있음)
-const player = new Audio();
-const voiceQueue = [];
-let playing = false;
-
-function playNext() {
-  if (playing || voiceQueue.length === 0) return;
-  playing = true;
-  player.muted = false;
-  player.src = voiceQueue.shift();
-  player.play().catch(() => { playing = false; playNext(); });
-}
-player.addEventListener('ended', () => { playing = false; playNext(); });
-player.addEventListener('error', () => { playing = false; playNext(); });
-
-// 호출이 오면: mp3가 있으면 mp3 재생, 없으면(새로 추가된 선생님 등) 기존 TTS로 읽기
-function speakTeacherName(name, subject) {
-  if (muted) return;
-  const file = VOICE_FILES[name];
-  if (file) {
-    voiceQueue.push(VOICE_DIR + file);
-    playNext();
-  } else {
-    speakTTS(name, subject);
-  }
-}
-
-// 브라우저 내장 음성 합성(TTS)으로 선생님 이름을 직접 불러줌 (PC용 예비 방식)
-function speakTTS(name, subject) {
+// ====== '자리에 없음' 안내 음성 (브라우저 내장 TTS, Windows 한국어 음성 사용) ======
+// message가 있으면 선생님이 남긴 메시지를 읽어줌
+function announceAway(name, message) {
   try {
-    const text = subject
-      ? `${subject} 담당, ${name} 선생님, 호출입니다.`
-      : `${name} 선생님, 호출입니다.`;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'ko-KR';
-    utter.rate = 1;
-    utter.pitch = 1;
-    window.speechSynthesis.speak(utter);
+    const text = message
+      ? name + ' 선생님은 자리에 계시지 않습니다. 선생님 메시지입니다. ' + message
+      : name + ' 선생님은 자리에 계시지 않습니다.';
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR';
+    u.rate = 1;
+    window.speechSynthesis.speak(u); // 여러 명이면 자동으로 차례대로 읽음
   } catch (e) {}
 }
 
-function timeAgo(iso) {
-  const sec = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  const m = Math.floor(sec / 60), s = sec % 60;
-  return m > 0 ? m + '분 ' + s + '초 전' : s + '초 전';
+// 브라우저는 화면을 한 번 누르기 전에는 소리를 막으므로, 첫 터치 때 미리 잠금 해제
+let audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try { window.speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio);
+document.addEventListener('click', unlockAudio);
+document.addEventListener('keydown', unlockAudio);
+
+// 직전에 '부재중'이었던 선생님 목록 (새로 부재중이 된 순간에만 음성 안내)
+let prevAwayNames = null;
+
+let tracking = null; // { id, pollHandle, timeoutHandle }
+let lastTeachers = [];
+let cooldownUntil = {}; // teacherName -> timestamp(ms)
+
+function stopTracking() {
+  if (!tracking) return;
+  clearInterval(tracking.pollHandle);
+  clearTimeout(tracking.timeoutHandle);
+  tracking = null;
 }
 
-const AUTO_AWAY_MS = 5 * 60 * 1000; // 5분
-const autoAwayInProgress = new Set();
+function setTrackingMessage(text, kind) {
+  trackingEl.textContent = text;
+  trackingEl.className = kind; // 'waiting' | 'away' | 'done'
+}
 
-async function refresh() {
-  const { data, error } = await sb
-    .from('calls')
-    .select('*')
-    .eq('resolved', false)
-    .order('created_at', { ascending: true });
+async function pollCallStatus(id, name) {
+  const { data, error } = await sb.from('calls').select('resolved, away').eq('id', id).single();
+  if (error || !data) return;
 
-  const list = document.getElementById('list');
-
-  if (error) {
-    list.innerHTML = '<div class="error">⚠️ 연결 오류: ' + error.message + '<br>SUPABASE_URL / KEY 및 테이블 설정을 확인하세요.</div>';
-    return;
+  if (data.away) {
+    // 선생님이 남긴 메시지가 있으면 함께 보여줌
+    let message = null;
+    const t = await sb.from('teachers').select('*').eq('name', name).maybeSingle();
+    if (t.data && t.data.away_message) message = t.data.away_message;
+    showAwayTracking(name, message);
+    stopTracking();
+  } else if (data.resolved) {
+    setTrackingMessage('✅ ' + name + ' 선생님이 확인했습니다.', 'done');
+    stopTracking();
   }
+}
 
-  // 호출된 지 5분이 지난 항목은 자동으로 '자리에 없음' 처리
-  const now = Date.now();
-  data.forEach(c => {
-    const elapsed = now - new Date(c.created_at).getTime();
-    if (elapsed >= AUTO_AWAY_MS && !autoAwayInProgress.has(c.id)) {
-      autoAwayInProgress.add(c.id);
-      markAway(c.id, c.teacher, true).finally(() => autoAwayInProgress.delete(c.id));
-    }
-  });
+function startTracking(id, name) {
+  stopTracking();
+  setTrackingMessage('⏳ ' + name + ' 선생님을 기다리는 중입니다...', 'waiting');
 
-  const newCalls = data.filter(c => !knownIds.has(c.id));
-  if (newCalls.length > 0 && !firstLoad) {
-    newCalls.forEach(c => speakTeacherName(c.teacher, c.subject));
-    document.title = '🔔 새 호출! - 호출 현황판';
-  }
-  knownIds = new Set(data.map(c => c.id));
-  firstLoad = false;
+  const pollHandle = setInterval(() => pollCallStatus(id, name), 5000);
+  const timeoutHandle = setTimeout(() => {
+    showAwayTracking(name, null);
+    stopTracking();
+  }, AWAY_TIMEOUT_SEC * 1000);
 
-  if (data.length === 0) {
-    list.innerHTML = '<div class="empty">현재 호출이 없습니다</div>';
-    document.title = '호출 현황판';
-    return;
-  }
+  tracking = { id, pollHandle, timeoutHandle };
+}
 
-  currentCalls = {};
-  data.forEach(c => { currentCalls[c.id] = c; });
-
-  list.innerHTML = data.map(c => `
-    <div class="call-card">
-      <div>
-        <div class="call-room">${esc(c.teacher)} 선생님${c.subject ? ' <span style="font-size:14px; color:#94a3b8; font-weight:400;">(' + esc(c.subject) + ')</span>' : ''}</div>
-        <div class="call-time">${timeAgo(c.created_at)}</div>
-      </div>
-      <div class="btn-group">
-        <button class="msg-btn" onclick="openMsgModal(${c.id})">메시지 남기기</button>
-        <button class="away-btn" onclick="markAwayById(${c.id})">자리에 없음</button>
-        <button class="resolve-btn" onclick="resolveCall(${c.id})">완료</button>
-      </div>
-    </div>
-  `).join('');
+// 부재 안내 + 메시지 + 메모 남기기 버튼
+function showAwayTracking(name, message) {
+  trackingEl.className = 'away';
+  trackingEl.innerHTML =
+    '🚫 ' + esc(name) + ' 선생님은 지금 자리에 계시지 않습니다.' +
+    (message ? '<div class="track-msg">💬 ' + esc(message) + '</div>' : '<div>잠시 후 다시 호출하거나 메모를 남겨주세요.</div>') +
+    '<button class="memo-open-btn" data-name="' + esc(name) + '" onclick="openMemoModal(this.dataset.name)">📝 ' + esc(name) + ' 선생님께 메모 남기기</button>';
 }
 
 // 학생이 쓴 글을 화면에 그대로 넣으면 위험하므로 특수문자 처리
@@ -251,122 +226,160 @@ function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
-let currentCalls = {};
-function markAwayById(id) {
-  const c = currentCalls[id];
-  if (c) markAway(c.id, c.teacher, false, null, 5);
+// ====== 선생님께 메모 남기기 ======
+function openMemoModal(name) {
+  const sel = document.getElementById('memoTeacher');
+  sel.innerHTML = '<option value="">선생님을 선택하세요</option>' +
+    lastTeachers.map(t => '<option value="' + esc(t.name) + '">' + esc(t.name) + ' 선생님' + (t.subject ? ' (' + esc(t.subject) + ')' : '') + '</option>').join('');
+  sel.value = name || '';
+  document.getElementById('memoText').value = '';
+  document.getElementById('memoError').textContent = '';
+  document.getElementById('memoModal').classList.add('show');
+  (name ? document.getElementById('memoText') : sel).focus();
+}
+function closeMemoModal() {
+  document.getElementById('memoModal').classList.remove('show');
+}
+async function sendMemo() {
+  const teacher = document.getElementById('memoTeacher').value;
+  const content = document.getElementById('memoText').value.trim();
+  const errEl = document.getElementById('memoError');
+  if (!teacher) { errEl.textContent = '선생님을 선택해주세요.'; return; }
+  if (!content) { errEl.textContent = '메모 내용을 입력해주세요.'; return; }
+  const { error } = await sb.from('memos').insert({ teacher, content });
+  if (error) { errEl.textContent = '⚠️ 메모 저장 실패: ' + error.message; return; }
+  closeMemoModal();
+  statusEl.textContent = teacher + ' 선생님께 메모를 남겼습니다!';
+  statusEl.style.color = '#c4b5fd';
+  setTimeout(() => { if (statusEl.textContent.includes('메모를 남겼습니다')) statusEl.textContent = ''; }, 5000);
+  loadMemos();
 }
 
-// ====== 메시지 남기기 ======
-let msgTarget = null;
-function openMsgModal(id) {
-  const c = currentCalls[id];
-  if (!c) return;
-  msgTarget = { id: c.id, teacher: c.teacher }; // 창이 열린 사이 목록이 바뀌어도 유지
-  document.getElementById('msgTitle').textContent = c.teacher + ' 선생님 · 학생에게 메시지 남기기';
-  document.getElementById('msgText').value = '';
-  document.getElementById('msgModal').classList.add('show');
-  document.getElementById('msgText').focus();
-}
-function closeMsgModal() {
-  document.getElementById('msgModal').classList.remove('show');
-  msgTarget = null;
-}
-function setPreset(text) {
-  document.getElementById('msgText').value = text;
-}
-async function sendMessage() {
-  const c = msgTarget;
-  const text = document.getElementById('msgText').value.trim();
-  const minutes = parseInt(document.getElementById('msgDur').value, 10);
-  if (!c) { closeMsgModal(); return; }
-  if (!text) { alertBox('메시지를 입력하거나 위의 버튼을 골라주세요.'); return; }
-  closeMsgModal();
-  await markAway(c.id, c.teacher, false, text, minutes);
-}
-function alertBox(text) {
-  document.getElementById('msgText').placeholder = '⚠️ ' + text;
-}
-
-// ====== 학생 메모 ======
-async function refreshMemos() {
+// 오늘 남긴 메모 목록 (선생님이 '확인'을 누르면 확인함으로 바뀜)
+async function loadMemos() {
   const el = document.getElementById('memoList');
-  const { data, error } = await sb.from('memos').select('*').eq('done', false).order('created_at', { ascending: true });
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const { data, error } = await sb.from('memos').select('*')
+    .gte('created_at', today.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(30);
   if (error) {
-    el.innerHTML = '<div class="memo-empty">⚠️ 메모를 불러올 수 없습니다 (Supabase에 memos 표가 있는지 확인하세요)</div>';
+    el.innerHTML = '<div class="empty">⚠️ 메모를 불러올 수 없습니다</div>';
     return;
   }
   if (data.length === 0) {
-    el.innerHTML = '<div class="memo-empty">남겨진 메모가 없습니다</div>';
+    el.innerHTML = '<div class="empty">오늘 남긴 메모가 없습니다</div>';
     return;
   }
-  el.innerHTML = data.map(m => `
-    <div class="memo-card">
-      <div>
-        <div class="memo-to">${esc(m.teacher)} 선생님께</div>
-        <div class="memo-text">${esc(m.content)}</div>
-        <div class="memo-time">${timeAgo(m.created_at)}</div>
-      </div>
-      <button class="resolve-btn" onclick="checkMemo(${m.id})">확인</button>
-    </div>
-  `).join('');
-}
-async function checkMemo(id) {
-  await sb.from('memos').update({ done: true }).eq('id', id);
-  refreshMemos();
+  el.innerHTML = data.map(m => {
+    const time = new Date(m.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+    return '<div class="memo-card">' +
+      '<div class="memo-head"><span>' + esc(m.teacher) + ' 선생님께 · ' + time + '</span>' +
+      (m.done ? '<span class="memo-state done">✅ 선생님 확인함</span>' : '<span class="memo-state wait">확인 대기</span>') +
+      '</div><div class="memo-text">' + esc(m.content) + '</div></div>';
+  }).join('');
 }
 
-async function resolveCall(id) {
-  await sb.from('calls').update({ resolved: true }).eq('id', id);
-  refresh();
-}
-
-// message: 학생 화면에 보여줄 메시지 (없으면 기본 '자리에 계시지 않습니다' 안내)
-async function markAway(id, teacherName, isAuto, message, minutes) {
-  const awayUntil = new Date(Date.now() + (minutes || 5) * 60 * 1000).toISOString();
-  // 메시지는 부재 표시와 같은 순간에 저장 (학생 화면이 둘을 함께 읽도록)
-  let teacherRes = await sb.from('teachers')
-    .update({ away_until: awayUntil, away_message: message || null })
-    .eq('name', teacherName);
-  if (teacherRes.error) {
-    // away_message 칸을 아직 안 만든 경우: 부재 표시만 저장
-    console.error('메시지 저장 실패(away_message 칸 확인):', teacherRes.error.message);
-    teacherRes = await sb.from('teachers').update({ away_until: awayUntil }).eq('name', teacherName);
+// DB에서 최신 선생님 목록을 가져와 캐시에 저장하고 다시 그림 (5초마다 실행)
+async function loadTeachers() {
+  const { data, error } = await sb.from('teachers').select('*').order('name', { ascending: true });
+  if (error) {
+    grid.innerHTML = '<div class="empty">⚠️ 명단을 불러올 수 없습니다: ' + error.message + '</div>';
+    return;
   }
-  const callRes = await sb.from('calls').update({ resolved: true, away: true }).eq('id', id);
-  if (callRes.error) console.error('호출 상태 업데이트 실패:', callRes.error.message);
-  if (teacherRes.error) console.error('선생님 부재중 표시 실패:', teacherRes.error.message);
-  if (!isAuto) refresh();
-}
+  lastTeachers = data;
 
-// 브라우저는 사용자가 페이지를 한 번 클릭하기 전까지 자동 음성 재생을 막는 경우가 많아,
-// 첫 클릭 시 무음으로 한 번 실행해서 미리 "잠금 해제"해 둠
-// (TV 리모컨의 확인 버튼은 keydown으로 들어올 수 있어서 둘 다 처리)
-let audioUnlocked = false;
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  // mp3 플레이어 잠금 해제: 소리 없이 한 번 재생했다 멈춤
-  if (!playing) {
-    player.muted = true;
-    player.src = VOICE_DIR + 't01.mp3';
-    player.play().then(() => { player.pause(); player.currentTime = 0; player.muted = false; })
-                 .catch(() => { player.muted = false; });
+  // 현황판에서 '자리에 없음'을 누르면(또는 5분 자동 처리) away_until이 생김 → 새로 생긴 경우 음성 안내
+  // 메시지가 새로 바뀐 경우에도 다시 읽어줌
+  const now = Date.now();
+  const awayNow = new Map(
+    data.filter(t => t.away_until && new Date(t.away_until).getTime() > now)
+        .map(t => [t.name, t.away_message || ''])
+  );
+  if (prevAwayNames !== null) {
+    awayNow.forEach((msg, name) => {
+      if (!prevAwayNames.has(name) || prevAwayNames.get(name) !== msg) announceAway(name, msg);
+    });
   }
-  try {
-    const unlockUtter = new SpeechSynthesisUtterance('');
-    window.speechSynthesis.speak(unlockUtter);
-  } catch (e) {}
-  const hint = document.getElementById('soundHint');
-  if (hint) hint.remove();
-}
-document.addEventListener('click', unlockAudio);
-document.addEventListener('keydown', unlockAudio);
+  prevAwayNames = awayNow;
 
-setInterval(refresh, 2000);
-refresh();
-setInterval(refreshMemos, 3000);
-refreshMemos();
+  renderTeachers();
+}
+
+// 캐시된 목록 + 쿨다운/부재중 상태만으로 화면을 그림 (DB 호출 없음, 즉시 반영용)
+function renderTeachers() {
+  const data = lastTeachers;
+  if (data.length === 0) {
+    grid.innerHTML = '<div class="empty">등록된 선생님이 없습니다.<br>관리자 페이지(manage.html)에서 먼저 추가해주세요.</div>';
+    return;
+  }
+
+  const now = Date.now();
+  const awayTeachers = data.filter(t => t.away_until && new Date(t.away_until).getTime() > now);
+
+  const bannerEl = document.getElementById('awayBanner');
+  if (awayTeachers.length > 0) {
+    bannerEl.className = 'show';
+    bannerEl.innerHTML =
+      '<div class="banner-title">🚫 지금 자리를 비우신 선생님이 있습니다</div>' +
+      '<div class="banner-list">' + awayTeachers.map(t =>
+        '<div class="banner-item">' + esc(t.name) + ' 선생님 부재중' +
+        (t.away_message ? '<div class="banner-msg">💬 ' + esc(t.away_message) + '</div>' : '') +
+        '</div>').join('') + '</div>';
+  } else {
+    bannerEl.className = '';
+    bannerEl.innerHTML = '';
+  }
+
+  grid.innerHTML = '';
+  data.forEach(t => {
+    const isAway = t.away_until && new Date(t.away_until).getTime() > now;
+    const inCooldown = cooldownUntil[t.name] && cooldownUntil[t.name] > now;
+
+    const btn = document.createElement('button');
+    btn.className = 'teacher' + (isAway && !inCooldown ? ' away' : '');
+
+    if (inCooldown) {
+      btn.disabled = true;
+      btn.textContent = '호출됨 ✓';
+    } else {
+      btn.innerHTML = (isAway ? '🚫 ' : '') + t.name + (isAway ? ' 부재중' : '') +
+        (t.subject ? '<div class="subject">' + t.subject + '</div>' : '');
+      btn.onclick = () => callTeacher(t.name, t.subject);
+    }
+    grid.appendChild(btn);
+  });
+}
+
+async function callTeacher(name, subject) {
+  cooldownUntil[name] = Date.now() + COOLDOWN_SEC * 1000;
+  renderTeachers();
+
+  const { data, error } = await sb.from('calls').insert({ teacher: name, subject: subject || null }).select().single();
+
+  if (error) {
+    statusEl.textContent = '⚠️ 호출 실패: ' + error.message;
+    statusEl.style.color = '#f87171';
+    delete cooldownUntil[name];
+    renderTeachers();
+    return;
+  }
+
+  statusEl.textContent = name + ' 선생님 호출 완료!';
+  statusEl.style.color = '#4ade80';
+  setTimeout(() => {
+    delete cooldownUntil[name];
+    statusEl.textContent = '';
+    renderTeachers();
+  }, COOLDOWN_SEC * 1000);
+
+  if (data) startTracking(data.id, name);
+}
+
+loadTeachers();
+setInterval(loadTeachers, 3000);
+loadMemos();
+setInterval(loadMemos, 5000);
 </script>
 </body>
 </html>
